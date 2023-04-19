@@ -67,7 +67,7 @@ def load_mesh(
         print("Failed to load : ", mesh_path)
         print("Warn:", reader.Warning())
         print("Err:", reader.Error())
-        exit(-1)
+        raise RuntimeError("Failed to load mesh")
 
     if reader.Warning():
         print("Warn:", reader.Warning())

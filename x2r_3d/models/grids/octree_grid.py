@@ -103,7 +103,7 @@ class OctreeGrid(BLASGrid):
                 feats = feats.reshape(*feats.shape[:-1], num_feats, self.feature_dim)
                 feats = feats.sum(-2)
 
-            return feats.reshape(*output_shape, self.feature_dim)
+            return feats.reshape(*output_shape, -1)
 
     def _interpolate(
         self, coords: torch.Tensor, feats: torch.Tensor, pidx: torch.LongTensor, lod_idx: int

@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Union, Optional
 
+import numpy as np
 import torch
 import kaolin.ops.spc as spc_ops
 
@@ -17,11 +18,6 @@ class OctreeAS(BaseAS):
         self.points, self.pyramid, self.prefix = octree_to_spc(octree)
         self.max_level = self.pyramid.shape[-1] - 2
         self.extra_fields = {}
-
-        print("octree", octree.shape)
-        print("points", self.points.shape)
-        print("pyramid", self.pyramid.shape)
-        print("prefix", self.prefix.shape)
 
     @classmethod
     def from_mesh(
@@ -46,6 +42,27 @@ class OctreeAS(BaseAS):
             accel_struct.extra_fields["texture_vertices"] = mesh.texture_vertices
             accel_struct.extra_fields["texture_faces"] = mesh.texture_faces
             accel_struct.extra_fields["materials"] = mesh.materials
+
+        return accel_struct
+
+    @classmethod
+    def from_dict(cls, octree_dict: dict) -> "OctreeAS":
+        def to_torch(data) -> torch.Tensor:
+            if isinstance(data, np.ndarray):
+                return torch.from_numpy(data)
+            elif isinstance(data, torch.Tensor):
+                return data
+            else:
+                raise ValueError(f"Unknown type {type(data)}")
+
+        accel_struct = OctreeAS(to_torch(octree_dict["octree"]).cuda())
+        accel_struct.extra_fields["vertices"] = to_torch(octree_dict["vertices"]).cuda()
+        accel_struct.extra_fields["faces"] = to_torch(octree_dict["faces"]).cuda()
+
+        for key in ["texture_vertices", "texture_faces", "materials"]:
+            # TODO: to_torch
+            if key in octree_dict:
+                accel_struct.extra_fields[key] = octree_dict[key]
 
         return accel_struct
 
