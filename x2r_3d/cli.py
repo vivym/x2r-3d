@@ -7,7 +7,6 @@ def main():
         pl.LightningModule, pl.LightningDataModule,
         subclass_mode_model=True,
         subclass_mode_data=True,
-        description="x2r-3d",
     )
 
 

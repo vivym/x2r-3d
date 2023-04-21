@@ -20,7 +20,7 @@ class BasicDecoder(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.num_channels = num_channels
-        self.num_layers = self.num_layers
+        self.num_layers = num_layers
         self.bias = bias
 
         if skip is None:

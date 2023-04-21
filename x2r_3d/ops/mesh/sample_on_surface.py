@@ -16,13 +16,15 @@ def get_samples(f: torch.Tensor, num_samples: int) -> torch.Tensor:
     return (1 - u) * f[:, 0, :] + (u * (1 - v)) * f[:, 1, :] + u * v * f[:, 2, :]
 
 
-def sample_surfaces(
+def sample_on_surface(
     vertices: torch.Tensor,
     faces: torch.Tensor,
     num_samples: int,
+    normals: Optional[torch.Tensor] = None,
     distrib: Optional[Distribution] = None,
 ):
-    normals = get_per_face_normals(vertices, faces)
+    if normals is None:
+        normals = get_per_face_normals(vertices, faces)
 
     if distrib is None:
         distrib = get_area_weighted_distribution(vertices, faces, normals)

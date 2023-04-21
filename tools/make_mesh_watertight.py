@@ -1,8 +1,8 @@
-import subprocess
 import multiprocessing as mp
 from pathlib import Path
 
-import zstandard as zstd
+import numpy as np
+import point_cloud_utils as pcu
 from tqdm import tqdm
 
 synset_id_to_category = {
@@ -34,46 +34,30 @@ category_to_synset_id = {v: k for k, v in synset_id_to_category.items()}
 
 
 def make_mesh_watertight(obj_path: Path):
+    mesh_path = obj_path / "models" / "model_normalized.obj"
+    output_path = obj_path / "models" / "model_normalized_watertight.obj"
+
     try:
-        mesh_path = obj_path / "models" / "model_normalized.obj"
-        output_path = obj_path / "models" / "model_normalized_watertight.obj"
+        v, f = pcu.load_mesh_vf(str(mesh_path))
+        vm, fm = pcu.make_mesh_watertight(v, f, resolution=20_000, seed=2333)
+        nm = pcu.estimate_mesh_vertex_normals(vm, fm)
 
-        # run and discard stdout, stderr
-        subprocess.run(
-            [
-                "./tools/manifold",
-                "--input",
-                str(mesh_path),
-                "--output",
-                str(output_path),
-                "--depth",
-                "8",
-
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-
-        with open(output_path, "rb") as in_f, open(output_path.with_suffix(".obj.zst"), "wb") as out_f:
-            cctx = zstd.ZstdCompressor(level=10)
-            cctx.copy_stream(in_f, out_f)
-
-        output_path.unlink()
+        pcu.save_mesh_vfn(str(output_path), vm, fm, nm)
     except Exception as e:
-        print("+" * 50)
         print(e)
-        ...
 
 
 def main():
     root_path = Path("data/ShapeNetCore.v2")
-    categories = ["car", "chair", "airplane"]
+    # categories = ["car", "chair", "airplane"]
+    categories = ["airplane"]
 
-    with mp.Pool(processes=8) as pool:
+    with mp.Pool(processes=16) as pool:
         for category in categories:
             synset_id = category_to_synset_id[category]
             category_root_path = root_path / synset_id
-            obj_paths = sorted(category_root_path.glob("*"))
+            obj_paths = sorted(category_root_path.glob("*"))[2000:]
+
             results = tqdm(
                 pool.imap_unordered(make_mesh_watertight, obj_paths),
                 total=len(obj_paths),

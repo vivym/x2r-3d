@@ -5,7 +5,7 @@ import torch.nn as nn
 class PositionalEmbedding(nn.Module):
     def __init__(
         self,
-        in_channels: int,
+        in_channels: int = 3,
     ) -> None:
         super().__init__()
 

@@ -1,9 +1,13 @@
+import pickle
 import multiprocessing as mp
 from pathlib import Path
 
+import ray
 import numpy as np
 import point_cloud_utils as pcu
+import zstandard as zstd
 from tqdm import tqdm
+from safetensors.numpy import save_file
 
 synset_id_to_category = {
     "02691156": "airplane", "02773838": "bag", "02801938": "basket",
@@ -33,33 +37,45 @@ category_to_category_id = {synset_id_to_category[synset_id]: i for i, synset_id 
 category_to_synset_id = {v: k for k, v in synset_id_to_category.items()}
 
 
-def make_mesh_watertight(obj_path: Path):
-    mesh_path = obj_path / "models" / "model_normalized.obj"
-    output_path = obj_path / "models" / "model_normalized_watertight2.obj"
+@ray.remote(num_cpus=12)
+def compute_sdf(pts_path: Path):
+    obj_id = pts_path.stem
+    octree_path = pts_path.parent.parent / "octrees.cache" / obj_id
+    sdf_path = pts_path.parent.parent / "sdf" / (obj_id + ".safetensors")
 
-    v, f = pcu.load_mesh_vf(str(mesh_path))
-    vm, fm = pcu.make_mesh_watertight(v, f, resolution=20_000, seed=2333)
-    nm = pcu.estimate_mesh_vertex_normals(vm, fm)
+    if sdf_path.exists():
+        return
 
-    pcu.save_mesh_vfn(str(output_path), vm, fm, nm)
+    with open(octree_path, "rb") as f:
+        octree_data = pickle.load(f)
+
+    with open(pts_path, "rb") as f:
+        pts = pickle.load(f)
+
+    vm = octree_data["mesh_vertices"]
+    fm = octree_data["mesh_faces"]
+
+    sdf, _, _ = pcu.signed_distance_to_mesh(pts, vm, fm)
+    save_file(dict(coords=pts, sdf=sdf), sdf_path)
+
+
+def to_iterator(obj_ids):
+    while obj_ids:
+        done, obj_ids = ray.wait(obj_ids, num_returns=1)
+        yield ray.get(done[0])
 
 
 def main():
-    root_path = Path("data/ShapeNetCore.v2")
-    categories = ["car", "chair", "airplane"]
+    root_path = Path("data/ShapeNetCoreV2")
 
-    with mp.Pool(processes=16) as pool:
-        for category in categories:
-            synset_id = category_to_synset_id[category]
-            category_root_path = root_path / synset_id
-            obj_paths = sorted(category_root_path.glob("*"))
+    results = [
+        compute_sdf.remote(pts_path)
+        for pts_path in sorted((root_path / "pts").glob("*"))
+    ]
+    print(len(results))
 
-            results = tqdm(
-                pool.imap_unordered(make_mesh_watertight, obj_paths),
-                total=len(obj_paths),
-            )
-            for _ in results:
-                ...
+    for _ in tqdm(to_iterator(results), total=len(results)):
+        ...
 
 
 if __name__ == "__main__":

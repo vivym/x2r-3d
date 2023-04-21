@@ -1,0 +1,34 @@
+data:
+  class_path: x2r_3d.data.datamodules.SDFDataModule
+  init_args:
+    sdf_path: data/ShapeNetCoreV2/sdf/1006be65e7bc937e9141f9b58470d646.safetensors
+    batch_size: 512
+
+model:
+  class_path: x2r_3d.models.sdf.NeuralSDF
+  init_args:
+    grid:
+      class_path: x2r_3d.models.grids.OctreeGrid
+      init_args:
+        accelstruct:
+          class_path: x2r_3d.accelstructs.OctreeAS
+          init_args:
+            octree_path: data/ShapeNetCoreV2/octrees/1006be65e7bc937e9141f9b58470d646.pkl
+        feature_dim: 16
+        base_lod: 2
+        num_lods: 6
+        interpolation_type: linear
+        aggregation_type: sum
+        feature_std: 0.01
+        feature_bias: 0.
+
+optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 0.001
+
+trainer:
+  devices: 1
+  max_steps: 100_000
+
+seed_everything: 2333

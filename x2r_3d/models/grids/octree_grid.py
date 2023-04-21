@@ -12,11 +12,11 @@ class OctreeGrid(BLASGrid):
         self,
         accelstruct: OctreeAS,
         feature_dim: int,
-        base_lod: int,
-        num_lods: int,
+        base_lod: int = 2,
+        num_lods: int = 6,
         interpolation_type: str = "linear",
         aggregation_type: str = "cat",
-        feature_std: float = 0.0,
+        feature_std: float = 0.01,
         feature_bias: float = 0.0,
     ) -> None:
         super().__init__(accelstruct)
@@ -37,23 +37,17 @@ class OctreeGrid(BLASGrid):
             self._init_features()
 
     def _init_features(self):
-        # Assumes the occupancy structure have been initialized (the BLAS: Bottom Level Accelerated Structure).
-        # Build the trinket structure
-        if self.interpolation_type in ["linear"]:
-            self.points_dual, self.pyramid_dual, self.trinkets, self.parents = \
-                make_trilinear_spc(self.blas.points, self.blas.pyramid)
-
         # Build the pyramid of features
         fpyramid = []
         for al in self.active_lods:
             if self.interpolation_type == "linear":
-                fpyramid.append(self.pyramid_dual[0, al] + 1)
+                fpyramid.append(self.blas.pyramid_dual[0, al].item() + 1)
             elif self.interpolation_type == "closest":
-                fpyramid.append(self.blas.pyramid[0, al] + 1)
+                fpyramid.append(self.blas.pyramid[0, al].item() + 1)
             else:
                 raise Exception(f"Interpolation mode {self.interpolation_type} is not supported.")
 
-        self.num_feats = sum(fpyramid).long()
+        self.num_feats = sum(fpyramid)
 
         self.features = nn.ParameterList([])
         for i in range(len(self.active_lods)):
@@ -74,7 +68,17 @@ class OctreeGrid(BLASGrid):
             coords = coords[:, None]
 
         if lod_idx == 0:
-            assert False
+            query_results = self.blas.query(coords[:,0], self.active_lods[lod_idx], with_parents=False)
+            pidx = query_results.pidx
+            feat = self._interpolate(coords, self.features[0], pidx, 0)
+            # return feat.reshape(*output_shape, feat.shape[-1])
+
+            query_results = self.blas.query(
+                coords[:, 0], self.active_lods[lod_idx], with_parents=False
+            )
+            pidx = query_results.pidx
+            feats = self._interpolate(coords, self.features[0], pidx, 0)
+            return feats.reshape(*output_shape, -1)
         else:
             feats = []
 
@@ -112,7 +116,7 @@ class OctreeGrid(BLASGrid):
 
         if self.interpolation_type == "linear":
             feats = spc_ops.unbatched_interpolate_trilinear(
-                coords, pidx.int(), self.blas.points, self.trinkets.int(), feats.half(), lod
+                coords, pidx.int(), self.blas.points, self.blas.trinkets.int(), feats.half(), lod
             ).to(dtype=feats.dtype)
         elif self.interpolation_type == "closest":
             assert False
