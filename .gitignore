@@ -1,4 +1,5 @@
 /data
+/wandb
 /mlruns
 /lightning_logs
 /outputs

@@ -3,7 +3,7 @@ from typing import Optional, Union
 
 import lightning.pytorch as pl
 
-from x2r_3d.data.datasets.sdf import build_sdf_dataset
+from x2r_3d.data.datasets.sdf import build_sdf_dataset, build_sdf_train_iter, build_sdf_val_iter
 
 
 class SDFDataModule(pl.LightningDataModule):
@@ -11,7 +11,7 @@ class SDFDataModule(pl.LightningDataModule):
         self,
         sdf_path: Union[str, Path],
         batch_size: int,
-        num_workers: int = 16,
+        num_workers: int = 64,
         random_seed: Optional[int] = None,
         prefetch_blocks: int = 0,
     ) -> None:
@@ -24,12 +24,24 @@ class SDFDataModule(pl.LightningDataModule):
         self.random_seed = random_seed
         self.prefetch_blocks = prefetch_blocks
 
-    def train_dataloader(self):
-        return build_sdf_dataset(
+    def setup(self, stage: Optional[str] = None):
+        self.ds = build_sdf_dataset(
             sdf_path=self.sdf_path,
-            batch_size=self.batch_size,
             num_workers=self.num_workers,
-            shuffle=True,
+        )
+
+    def train_dataloader(self):
+        return build_sdf_train_iter(
+            self.ds,
+            batch_size=self.batch_size,
+            random_seed=self.random_seed,
+            prefetch_blocks=self.prefetch_blocks,
+        )
+
+    def val_dataloader(self):
+        return build_sdf_val_iter(
+            self.ds,
+            batch_size=self.batch_size,
             random_seed=self.random_seed,
             prefetch_blocks=self.prefetch_blocks,
         )
